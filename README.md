@@ -206,7 +206,7 @@ AI Image Enhancement/
 
 ---
 
-⚙️ Installation Guide
+# ⚙️ Installation Guide
 
 Follow these steps to set up and run the project on Windows using PowerShell or VS Code terminal.
 
@@ -242,8 +242,9 @@ matplotlib>=3.7.0
 reportlab>=4.0.0
 requests>=2.31.0
 python-dotenv>=1.0.0
+
+# 🧠 Real-ESRGAN Setup
 ---
-🧠 Real-ESRGAN Setup
 
 This project uses the Real-ESRGAN NCNN Vulkan executable for local AI-based super-resolution.
 
@@ -275,8 +276,9 @@ realesr-animevideov3
 For this project, the main model used is:
 
 realesrgan-x4plus
----
+
 ☁️ Clipdrop API Setup
+---
 
 Clipdrop cloud enhancement is optional.
 
@@ -294,8 +296,9 @@ Fast Enhance - OpenCV
 AI Enhance - Real-ESRGAN
 Auto Mode
 Prompt Guided Enhancement
----
+
 ▶️ Run the Application
+---
 
 Run the following command:
 
@@ -337,8 +340,9 @@ Reports are stored in:
 
 outputs/reports/
 
----
+
 💾 Enhanced Image Output
+---
 
 Enhanced images can be downloaded directly from the application.
 
@@ -346,9 +350,10 @@ Output images are stored in:
 
 outputs/enhanced/
 
----
+
 
 🧠 Project Workflow
+---
 Upload Image
      ↓
 Image Preview
@@ -364,8 +369,9 @@ Image Enhancement
 Before / After Comparison
      ↓
 Save Image / Generate Report
----
+
 🔍 Quality Analysis Methods
+---
 Blur Score
 
 Blur is calculated using Laplacian variance.
@@ -392,8 +398,9 @@ Contrast is calculated using standard deviation of grayscale intensity.
 Overall Quality Score
 
 Overall quality score is calculated using a weighted combination of blur, sharpness, noise, brightness, contrast, and resolution.
+
+# 📌 Project Scope
 ---
-📌 Project Scope
 Included
 Single image enhancement
 Image quality analysis
@@ -408,8 +415,9 @@ Video processing
 Motion blur video restoration
 Real-time webcam processing
 Full prompt-based AI image editing using LLM APIs
+
+# 🧾 Final Project Explanation
 ---
-🧾 Final Project Explanation
 
 This project combines classical image processing and AI-based enhancement techniques.
 
@@ -422,25 +430,24 @@ The prompt-guided enhancement feature is implemented using a lightweight local r
 The Clipdrop cloud enhancement mode is optional. The application works without internet or API key using local OpenCV and Real-ESRGAN features.
 ---
 
-🗣️ Demo Explanation
+# 🗣️ Demo Explanation
 
 During demonstration, the project can be explained as:
 
 This project is an AI-based image enhancement and quality analysis system. It accepts a single low-quality image as input, analyzes quality metrics such as blur, sharpness, noise, brightness, contrast, and resolution, detects issues, and applies suitable enhancement techniques. OpenCV is used for stable image processing operations, while Real-ESRGAN is used as a local AI super-resolution engine. The system also supports prompt-guided local enhancement, optional Clipdrop cloud enhancement, before/after comparison, enhanced image download, and PDF report generation.
----
 
-🏁 Developed For
+
+# 🏁 Developed For
 
 DRDO Internship Project
 
 Project Title: AI-Based Image Enhancement and Quality Analysis System
----
 
-👨‍💻 Developer
+
+# 👨‍💻 Developer
 
 Developed by: Divyash Saxena
 
 Branch: CSE (AI & ML)
 
 Institution: J.S.S Academy of Technical Education, Noida
----
