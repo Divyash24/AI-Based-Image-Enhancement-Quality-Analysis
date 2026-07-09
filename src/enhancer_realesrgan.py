@@ -4,6 +4,22 @@ from pathlib import Path
 
 from PIL import Image
 from click import command
+import platform
+
+def find_realesrgan_executable():
+    system_name = platform.system().lower()
+
+    if system_name == "windows":
+        patterns = ["realesrgan-ncnn-vulkan.exe"]
+    else:
+        patterns = ["realesrgan-ncnn-vulkan"]
+
+    for pattern in patterns:
+        matches = [path for path in TOOLS_DIR.rglob(pattern) if path.is_file()]
+        if matches:
+            return matches[0]
+
+    return None
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
