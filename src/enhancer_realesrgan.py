@@ -21,6 +21,7 @@ def find_realesrgan_exe() -> Path | None:
         return None
 
     matches = list(TOOLS_DIR.rglob("realesrgan-ncnn-vulkan.exe"))
+    matches += list(TOOLS_DIR.rglob("realesrgan-ncnn-vulkan"))
 
     if not matches:
         return None

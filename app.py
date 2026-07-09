@@ -12,6 +12,8 @@ from src.auto_pipeline import auto_enhance
 from src.hybrid_ai_enhancer import hybrid_ai_enhance
 from src.report_generator import generate_pdf_report
 from src.enhancer_clipdrop import cloud_enhance_clipdrop, is_clipdrop_configured
+import tempfile
+from src.video_realesrgan import get_video_info, enhance_video_realesrgan
 
 
 OUTPUT_DIR = Path("outputs")
@@ -442,6 +444,83 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.markdown("## 🎬 Video Enhancement - Real-ESRGAN")
+
+video_file = st.file_uploader(
+    "Upload Video for Real-ESRGAN Enhancement",
+    type=["mp4", "avi", "mov", "mkv"],
+    key="video_uploader",
+)
+
+if video_file is not None:
+    temp_video = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+    temp_video.write(video_file.read())
+    temp_video.close()
+
+    info = get_video_info(temp_video.name)
+
+    v_left, v_right = st.columns([1, 2], gap="large")
+
+    with v_left:
+        st.markdown("### Video Info")
+        st.metric("Resolution", info["resolution"])
+        st.metric("FPS", info["fps"])
+        st.metric("Total Frames", info["frame_count"])
+        st.metric("Duration", f'{info["duration"]} sec')
+
+        st.warning("Real-ESRGAN video processing is slow because each frame is enhanced one by one.")
+
+        process_full_video = st.checkbox("Process full video", value=True)
+
+        max_frames = None
+        if not process_full_video:
+            max_frames = st.number_input(
+                "Frames to process",
+                min_value=1,
+                max_value=info["frame_count"],
+                value=min(100, info["frame_count"]),
+            )
+
+        scale = st.selectbox("Upscale Scale", [2, 4], index=0)
+
+        if st.button("Enhance Video with Real-ESRGAN", use_container_width=True):
+            progress_bar = st.progress(0)
+
+            with st.spinner("Processing video frame-by-frame using Real-ESRGAN... This may take time."):
+                output_path, output_info = enhance_video_realesrgan(
+                    video_path=temp_video.name,
+                    progress_callback=lambda value: progress_bar.progress(value),
+                    scale=scale,
+                    model_name="realesrgan-x4plus",
+                    max_frames=max_frames,
+                )
+
+                st.session_state.video_output_path = output_path
+                st.session_state.video_output_info = output_info
+
+            st.success("Video enhancement completed!")
+
+    with v_right:
+        st.markdown("### Input Video Preview")
+        st.video(temp_video.name)
+
+        if st.session_state.get("video_output_path"):
+            st.markdown("### Enhanced Video Output")
+            st.video(st.session_state.video_output_path)
+
+            with open(st.session_state.video_output_path, "rb") as file:
+                st.download_button(
+                    "Download Enhanced Video",
+                    data=file,
+                    file_name="realesrgan_enhanced_video.mp4",
+                    mime="video/mp4",
+                    use_container_width=True,
+                )
+
+            st.markdown("### Output Info")
+            st.json(st.session_state.video_output_info)
+
+st.divider()
 
 uploaded_file = st.file_uploader(
     "Upload image",
