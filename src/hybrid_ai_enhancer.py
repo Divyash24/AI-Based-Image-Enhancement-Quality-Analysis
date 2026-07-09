@@ -2,115 +2,116 @@ from PIL import Image
 
 from src.analyzer import analyze_image
 from src.enhancer_opencv import fast_enhance, enhance_with_actions
-from src.enhancer_realesrgan import ai_enhance_realesrgan, is_realesrgan_ready
+from src.enhancer_realesrgan import ai_enhance_realesrgan
 
-def prepare_realesrgan_input(image: Image.Image, max_side: int = 512) -> Image.Image:
-    """
-    Real-ESRGAN works best on small low-resolution inputs.
-    Also force dimensions to multiples of 8 to avoid tile/grid artifacts.
-    """
+try:
+    from src.enhancer_realesrgan_cpu import cpu_realesrgan_enhance
+except Exception:
+    cpu_realesrgan_enhance = None
 
+
+def prepare_realesrgan_input(image: Image.Image, max_side: int = 320) -> Image.Image:
     image = image.convert("RGB")
     width, height = image.size
+
     largest_side = max(width, height)
 
     if largest_side > max_side:
-        scale_ratio = max_side / largest_side
-        width = int(width * scale_ratio)
-        height = int(height * scale_ratio)
+        scale = max_side / largest_side
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
-    # Make dimensions multiples of 8
-    width = max(64, (width // 8) * 8)
-    height = max(64, (height // 8) * 8)
+    width, height = image.size
 
-    return image.resize((width, height), Image.Resampling.LANCZOS)
+    safe_width = max(64, (width // 8) * 8)
+    safe_height = max(64, (height // 8) * 8)
+
+    if (safe_width, safe_height) != image.size:
+        image = image.resize((safe_width, safe_height), Image.Resampling.LANCZOS)
+
+    return image
 
 
-def hybrid_ai_enhance(image: Image.Image, force_realesrgan: bool = False) -> dict:
-    """
-    AI enhancement pipeline.
-
-    force_realesrgan=True:
-        Real-ESRGAN will be used for AI Enhance button.
-
-    force_realesrgan=False:
-        OpenCV safe enhancement will be used unless needed.
-    """
-
+def hybrid_ai_enhance(image: Image.Image, force_realesrgan: bool = True) -> dict:
     input_metrics = analyze_image(image)
+    backend_errors = []
 
-    actions = []
-    reasons = []
+    # 1. Try NCNN Vulkan Real-ESRGAN first
+    try:
+        safe_input = prepare_realesrgan_input(image, max_side=320)
 
-    # Stable fallback output
-    opencv_output = fast_enhance(image)
-    opencv_metrics = analyze_image(opencv_output)
+        realesrgan_output = ai_enhance_realesrgan(
+            image=safe_input,
+            scale=4,
+            model_name="realesrgan-x4plus",
+        )
 
-    if force_realesrgan:
-        if not is_realesrgan_ready():
-            return {
-                "enhanced_image": opencv_output,
-                "input_metrics": input_metrics,
-                "output_metrics": opencv_metrics,
-                "actions": ["opencv_fallback"],
-                "reasons": ["Real-ESRGAN setup was not ready, so OpenCV fallback was used."],
-                "backend_used": "OpenCV Fallback",
-            }
-
-        try:
-            # Preprocess before AI upscale
-            safe_input = prepare_realesrgan_input(image, max_side=640)
-
-        
-            
-
-            # Real-ESRGAN super-resolution
-            realesrgan_output = ai_enhance_realesrgan(
-                image=safe_input,
-                scale=4,
-                model_name="realesrgan-x4plus",
-            )
-
-            # Light postprocessing after AI upscale
-            final_output = enhance_with_actions(
+        final_output = enhance_with_actions(
             realesrgan_output,
             ["sharpen"],
+        )
+
+        output_metrics = analyze_image(final_output)
+
+        return {
+            "input_metrics": input_metrics,
+            "output_metrics": output_metrics,
+            "enhanced_image": final_output,
+            "backend_used": "Real-ESRGAN NCNN Vulkan",
+            "actions": ["NCNN Vulkan Real-ESRGAN", "Sharpen"],
+            "reasons": ["GPU/Vulkan Real-ESRGAN backend completed successfully."],
+        }
+
+    except Exception as error:
+        backend_errors.append(f"NCNN Vulkan failed: {str(error)[:180]}")
+
+    # 2. Try PyTorch CPU Real-ESRGAN
+    if cpu_realesrgan_enhance is not None:
+        try:
+            safe_input = prepare_realesrgan_input(image, max_side=256)
+
+            cpu_output = cpu_realesrgan_enhance(
+                image=safe_input,
+                outscale=2,
+                tile=128,
             )
 
-            final_metrics = analyze_image(final_output)
+            final_output = enhance_with_actions(
+                cpu_output,
+                ["sharpen"],
+            )
+
+            output_metrics = analyze_image(final_output)
 
             return {
-                "enhanced_image": final_output,
                 "input_metrics": input_metrics,
-                "output_metrics": final_metrics,
-                "actions": [
-                    "opencv_preprocessing",
-                    "realesrgan_super_resolution",
-                    "opencv_postprocessing",
-                ],
+                "output_metrics": output_metrics,
+                "enhanced_image": final_output,
+                "backend_used": "Real-ESRGAN PyTorch CPU",
+                "actions": ["PyTorch CPU Real-ESRGAN", "Sharpen"],
                 "reasons": [
-                    "Real-ESRGAN was force-applied for AI Enhance mode.",
-                    "OpenCV preprocessing and postprocessing were used for quality stabilization.",
+                    "NCNN Vulkan was unavailable.",
+                    "PyTorch CPU Real-ESRGAN backend completed successfully.",
                 ],
-                "backend_used": "Real-ESRGAN + OpenCV",
             }
 
         except Exception as error:
-            return {
-                "enhanced_image": opencv_output,
-                "input_metrics": input_metrics,
-                "output_metrics": opencv_metrics,
-                "actions": ["opencv_fallback"],
-                "reasons": [f"Real-ESRGAN failed, so OpenCV fallback was used. Error: {error}"],
-                "backend_used": "OpenCV Fallback",
-            }
+            backend_errors.append(f"PyTorch CPU failed: {str(error)[:180]}")
+    else:
+        backend_errors.append("PyTorch CPU backend import failed or not installed.")
 
-    # Default safe mode
+    # 3. Final OpenCV CPU fallback
+    fallback_output = fast_enhance(image)
+    output_metrics = analyze_image(fallback_output)
+
     return {
-        "enhanced_image": opencv_output,
         "input_metrics": input_metrics,
-        "output_metrics": opencv_metrics,
-        "actions": ["opencv_fast_enhancement"],
-        "reasons": ["Safe OpenCV enhancement was used."],
-        "backend_used": "OpenCV",
+        "output_metrics": output_metrics,
+        "enhanced_image": fallback_output,
+        "backend_used": "OpenCV CPU Fallback",
+        "actions": ["OpenCV Denoise", "CLAHE", "Gamma/Contrast", "Sharpen"],
+        "reasons": backend_errors + [
+            "Both Real-ESRGAN backends failed, so OpenCV CPU fallback was used."
+        ],
     }

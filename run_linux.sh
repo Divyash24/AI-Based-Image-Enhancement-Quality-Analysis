@@ -8,7 +8,7 @@ echo "======================================"
 
 cd "$(dirname "$0")"
 
-echo "[1/7] Checking project files..."
+echo "[1/8] Checking project files..."
 
 if [ ! -f "app.py" ]; then
     echo "ERROR: app.py not found. Please run this script from project root."
@@ -25,49 +25,71 @@ if [ ! -d "src" ]; then
     exit 1
 fi
 
-if [ ! -d "tools" ]; then
-    echo "ERROR: tools folder not found. Real-ESRGAN files are missing."
-    exit 1
+echo "[2/8] Creating virtual environment..."
+
+if [ ! -d ".venv" ]; then
+    python3 -m venv .venv
 fi
 
-echo "[2/7] Creating virtual environment..."
-
-python3 -m venv .venv
-
-echo "[3/7] Activating virtual environment..."
+echo "[3/8] Activating virtual environment..."
 
 source .venv/bin/activate
 
-echo "[4/7] Installing Python dependencies..."
+echo "[4/8] Installing base Python dependencies..."
 
 pip install --upgrade pip
 pip install -r requirements.txt
 
-echo "[5/7] Setting Real-ESRGAN executable permission..."
+echo "[5/8] Installing optional PyTorch CPU Real-ESRGAN backend..."
+
+set +e
+
+pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cpu
+
+if [ -f "requirements_cpu_realesrgan.txt" ]; then
+    pip install -r requirements_cpu_realesrgan.txt
+fi
+
+CPU_INSTALL_STATUS=$?
+
+set -e
+
+if [ $CPU_INSTALL_STATUS -eq 0 ]; then
+    echo "CPU Real-ESRGAN dependencies installed."
+else
+    echo "WARNING: CPU Real-ESRGAN dependencies failed to install."
+    echo "App will still run with NCNN Vulkan or OpenCV fallback."
+fi
+
+echo "[6/8] Setting Real-ESRGAN NCNN executable permission..."
 
 REALESRGAN_PATH=$(find tools -type f -name "realesrgan-ncnn-vulkan" | head -n 1)
 
 if [ -z "$REALESRGAN_PATH" ]; then
-    echo "ERROR: Linux Real-ESRGAN executable not found inside tools folder."
-    exit 1
+    echo "WARNING: Linux Real-ESRGAN NCNN executable not found inside tools folder."
+else
+    chmod +x "$REALESRGAN_PATH"
+    echo "Real-ESRGAN NCNN found at:"
+    echo "$REALESRGAN_PATH"
+
+    if "$REALESRGAN_PATH" -h > /dev/null 2>&1; then
+        echo "Real-ESRGAN NCNN help test passed."
+    else
+        echo "WARNING: Real-ESRGAN NCNN help test failed."
+        echo "App will still start and try CPU/OpenCV fallback."
+    fi
 fi
 
-chmod +x "$REALESRGAN_PATH"
+echo "[7/8] Checking CPU Real-ESRGAN model..."
 
-echo "Real-ESRGAN found at:"
-echo "$REALESRGAN_PATH"
+if [ -f "models/weights/RealESRGAN_x4plus.pth" ]; then
+    echo "CPU Real-ESRGAN model found."
+else
+    echo "WARNING: models/weights/RealESRGAN_x4plus.pth not found."
+    echo "CPU Real-ESRGAN will not work until this file is added."
+fi
 
-echo "[6/7] Testing Real-ESRGAN executable..."
-
-"$REALESRGAN_PATH" -h > /dev/null 2>&1 || {
-    echo "ERROR: Real-ESRGAN executable test failed."
-    echo "Possible reason: missing Vulkan drivers."
-    echo "Ask admin to run:"
-    echo "sudo apt install libvulkan1 vulkan-tools mesa-vulkan-drivers -y"
-    exit 1
-}
-
-echo "[7/7] Creating output folders..."
+echo "[8/8] Creating output folders..."
 
 mkdir -p outputs/enhanced
 mkdir -p outputs/reports
@@ -75,7 +97,7 @@ mkdir -p outputs/videos
 mkdir -p temp
 
 echo "======================================"
-echo "Setup completed successfully."
+echo "Setup completed."
 echo "Starting Streamlit app..."
 echo "Open browser at: http://localhost:8501"
 echo "======================================"
